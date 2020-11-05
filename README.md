@@ -21,9 +21,10 @@ Evaluation Metrics: RMSE, Spearman Rank Correlation, Precision at Top K External
 Dependencies: numpy, re, heapq, timeit, math, scipy, sklearn, random
 
 Working:
-1. Run CF.ipynb, CF_baseline.ipynb for collaborative filtering and 
- collaborative with baseline respectively.
-2. After few minutes, the output will be displayed.
+1. Run svd_pl.py, svd_red_final.py, cur.py, cur_90.py, CF.ipynb, CF_baseline.ipynb for SVD, 
+SVD with 90% retained energy, CUR, CUR with 90% retained, collaborative filtering and 
+collaborative with baseline respectively.
+2. After few minutes, the output (errors along with time taken) will be displayed.
 
 
 Acknowledgements:
