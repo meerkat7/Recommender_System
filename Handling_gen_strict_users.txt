@@ -1,0 +1,2 @@
+We take care of bias of users by subtracting mean rating of each user from all of their ratings. This helps to reduce the mean rating of a high user and inc mean rating of strict user and hence normalizes the bias. 
+This is done at the end of the "process" function in SVD and CUR and is done separately in Collab filtering.

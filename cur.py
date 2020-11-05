@@ -1,0 +1,303 @@
+import math
+import numpy
+import timeit
+from numpy import linalg
+from sklearn.metrics import mean_squared_error
+from math import sqrt
+
+
+def process(name):
+	file=open(name,"r")
+	raw=file.readlines()
+	ratings=[]
+	for line in raw:
+		irate=[]
+		line=line.split("\t")
+		user=int(line[0])
+		irate.append(user)
+		movie=int(line[1])
+		irate.append(movie)
+		score_rate=float(line[2])
+		irate.append(score_rate)
+		ratings.append(irate)
+	max_movie=0
+	max_user=ratings[len(ratings)-1][0]
+	for rate in ratings:
+		if rate[1]>max_movie:
+			max_movie=rate[1]
+	rating_matrix=numpy.zeros((max_user, max_movie))
+	for rate in ratings:
+		rating_matrix[rate[0]-1][rate[1]-1]=rate[2]
+	
+	for i in range(len(rating_matrix)):
+		sum=0
+		count=0
+		for j in range(len(rating_matrix[i])):
+			sum=sum+rating_matrix[i][j]
+			count=count+1.0
+		avg=sum/count
+		for k in range(len(rating_matrix[i])):
+			rating_matrix[i][k]=rating_matrix[i][k]-avg
+
+	rating_matrix=rating_matrix-rating_matrix.mean(axis=1,keepdims=True)
+	return rating_matrix
+
+
+def eigen(matrix):
+	values,vectors=linalg.eig(matrix)
+	answer={}
+	l=len(values)
+	for i in range(0,l):
+		answer[values[i]]=vectors[:,i]
+		
+	values=sorted(values)
+	fp={}
+	for i in values:
+		fp[round(i.real,2)]=answer[i].real
+	return fp
+
+
+def svd(matrix):
+	matrix_T=matrix.transpose()
+	A=numpy.dot(matrix,matrix_T)
+	eigA=eigen(A)
+	B=numpy.dot(matrix_T,matrix)
+	eigB=eigen(B)
+	answer=[]
+	for key in eigA:
+		if abs(key)!=0:
+				round_key=round(key,2)
+				answer.append(round_key)
+
+	answer=sorted(answer,reverse=True)
+	l=len(answer)
+	leigA=len(eigA[answer[0]])
+	leigB=len(eigB[answer[0]])
+	U=numpy.zeros((leigA,l))
+	V=numpy.zeros((leigB,l))
+	
+	for i in range(l):
+		g=len(eigA[answer[i]])
+		for j in range(g):
+			U[j][i]=eigA[answer[i]][j]
+		h=len(eigB[answer[i]])
+		for j in range(h):
+			V[j][i]=eigB[answer[i]][j]
+	V=V.transpose()     
+	sig=numpy.zeros((l,l))
+	numpy.fill_diagonal(sig,answer,wrap=True)
+	sig=numpy.sqrt(sig)
+	ls=len(sig)
+	for i in range(ls):
+		row_matrix_V = V[i]
+		row_matrix_V_matrix = numpy.matrix(row_matrix_V)
+		row_matrix_V_transpose_matrix = row_matrix_V_matrix.T
+		column_vector_v = numpy.dot(matrix, row_matrix_V_transpose_matrix)
+
+		answer_u = []
+		for row in U:
+			column_count = 0
+			for column in row:
+				if column_count == i:
+					answer_u.append(column)
+					break
+				column_count += 1
+
+		u_vector = numpy.matrix(answer_u)
+		u_column_vector = u_vector.T
+		var = False
+		V_length = len(column_vector_v) 
+
+		for j in range(V_length):
+			if u_column_vector[j] != 0.0:
+				if column_vector_v[j]/u_column_vector[i] < 0.0:
+					var = True
+					break
+
+		if var == True:    
+			len_answer_u = len(answer_u)
+			for k in range(len_answer_u):
+				U[k][i]=-1.0*U[k][i]
+	return U,sig,V
+
+
+
+def CUR(matrix): #input is numpy matrix
+	#selecting r (rank) number of rows
+	print("in CUR 1")
+	original_matrix = matrix
+	matrix = matrix.tolist()
+	
+	row_probability = [None]*len(matrix)
+	squares = numpy.square(matrix)
+	sum_of_squares = numpy.sum(squares)
+	denominator_in_probability_calc =  sum_of_squares
+	#calculating probability for each row
+	print("in CUR 1.1")
+	for i in range(len(matrix)):
+		for j in range(len(matrix[i])):
+			sum_of_squares = numpy.sum(numpy.square(matrix[i]))
+		row_probability[i] = sum_of_squares/denominator_in_probability_calc
+		print("in CUR 1.%s" %i)
+	print("in CUR 1.2")
+	r = linalg.matrix_rank(matrix)
+	numpy.random.seed(10) 
+	print("in CUR 1.3")
+	randomly_selected_row_numbers = numpy.random.choice(len(matrix), r,replace=False, p=row_probability)
+	#selecting r (rank) number of columns
+	#transposing matrix to select r rows as before
+	print("in CUR 2")
+	matrix = numpy.array(matrix)
+	matrix = numpy.transpose(matrix)
+	matrix = matrix.tolist()
+	column_probability = [None]*len(matrix)
+	squares = numpy.square(matrix)
+	sum_of_squares = numpy.sum(squares)
+	denominator_in_probability_calc =  sum_of_squares
+	#calculating probability for each column
+	print("in CUR 3")
+	for i in range(len(matrix)):
+		for j in range(len(matrix[i])):
+			sum_of_squares = numpy.sum(numpy.square(matrix[i]))
+		column_probability[i] = sum_of_squares/denominator_in_probability_calc
+	randomly_selected_column_numbers = numpy.random.choice(len(matrix), r,replace=False, p=column_probability)
+	#calculating matrix U 
+	intersection = numpy.zeros((r,r))
+	for i in range(len(intersection)):
+		for j in range(len(intersection[i])):
+			intersection[i][j]=original_matrix[randomly_selected_row_numbers[i]][randomly_selected_column_numbers[j]]
+	U , S , V = svd(intersection)
+	U = numpy.transpose(U)
+	V = numpy.transpose(V)
+	for i in range(len(S)):
+		if(S[i][i]!=0):
+			S[i][i]=1/S[i][i]
+	# S = numpy.dot(S,S)
+	CUR_U =numpy.dot(V,S)
+	CUR_U = numpy.dot(CUR_U,U)
+	#Constructing C from randomly selected column numbers
+	print("in CUR 4")
+	C = []
+	original_matrix_trans=numpy.transpose(original_matrix) 
+	for i in range(len(randomly_selected_column_numbers)):
+		C.append(original_matrix_trans[randomly_selected_column_numbers[i]%len(original_matrix)])
+	C=numpy.array(C)
+	C= numpy.transpose(C)
+	#Constructing R from randomly selected row numbers
+	print("in CUR 5")
+	R = []
+	for i in range(len(randomly_selected_row_numbers)):
+		R.append(original_matrix[randomly_selected_row_numbers[i]%len(original_matrix)])
+	R=numpy.array(R)
+	ans=numpy.dot(C,CUR_U)
+	ans=numpy.dot(ans,R)
+	print("in CUR 6")
+	return ans
+
+def select_topk(mat):
+	mat=mat.tolist()
+	srow=[]
+	pr=[0]*len(mat)
+	mat2=[]
+	squares = numpy.square(mat)
+	total = numpy.sum(squares)
+	for i in range(len(mat)):
+		row=0.0
+		for j in range(len(mat[i])):
+			row=row+mat[i][j]**2
+		pr[i]=row/total
+	rank=linalg.matrix_rank(mat)
+	pr1=sorted(pr,reverse=True)
+	pr=numpy.asarray(pr)
+	k=0
+	sum_l=sum(pr1)
+	sum_u=0
+	i=0
+	while(sum_u<10*sum_l):
+		if(i<len(pr1)):
+			sum_u=sum_u+pr1[i]
+			sum_l=sum_l-pr1[i]
+			i=i+1
+			k=k+1
+		else:
+			break
+	srow=pr.argsort()[::-1][:k]
+	for j in range(len(srow)):
+		mat2.append(mat[srow[j]])
+	return mat2,srow
+	
+#calculating precision on top k for CUR
+def ponk_cur(mat):
+	R,srow=select_topk(mat)
+	C,scol=select_topk(mat.transpose())
+	lr=len(srow)
+	lc=len(scol)
+	intersection=numpy.zeros((lr,lc))
+	for i in range(lr):
+		for j in range(lc):
+			intersection[i][j]=mat[srow[i]][scol[j]]
+	U,sigma,V=svd(intersection)
+	U=U.transpose()
+	V=V.transpose()
+	ls=len(sigma)
+	for i in range(ls):
+		if (abs(sigma[i][i])!=0):
+			sigma[i][i]=1/sigma[i][i]
+	SU=numpy.dot(sigma,U)
+	intersection=numpy.dot(V,SU)
+	C=(numpy.matrix(C)).transpose()
+	R=numpy.matrix(R)
+	RI=numpy.dot(intersection,R)
+	final=numpy.dot(C,RI)
+	k_mat=final.tolist()
+	count=0.00
+	match=0.00
+	for i in range(0,len(mat)):
+		for j in range(0,len(mat[i])):
+			count=count+1
+			a=int(round(mat[i][j]))
+			b=int(round(k_mat[i][j]))
+			if (a==b):
+				match=match+1
+	precision=(match*100)/count
+	return precision
+
+def srcr(mat,final):
+	count=0
+	sumds=0
+	for i in range(0,len(mat)):
+		for j in range(0,len(mat[i])):
+			sumds=sumds+(mat[i][j]-final[i][j])**2
+			count=count+1
+	sumds=6*sumds
+	den=(count**3)-count
+	p=1-(sumds/den)
+	return p
+
+
+matrix=process("ratings.txt")
+#calculating CUR
+# matrix=[[1,2,3],[9,8,7],[18,37,90],[19,8,8],[9,9,9]]
+matrix=numpy.array(matrix)
+start=timeit.default_timer()
+CUR_matrix=CUR(matrix)
+#calculating time taken
+print("Time taken\n")
+stop=timeit.default_timer()
+print("%s seconds" %(stop-start))
+#calculating errors
+rmse_err=sqrt(mean_squared_error(matrix, CUR_matrix))
+print("RMSE error is :")
+print(rmse_err)
+print("Precision is :")
+please=ponk_cur(matrix)
+print(please)
+answer=srcr(matrix,CUR_matrix)
+print("spearman is ",answer)			 
+
+
+# a = numpy.array([[1,2], [3,4]])
+# print(a)
+# print(CUR(a))
+
+
